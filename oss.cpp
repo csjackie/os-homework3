@@ -9,6 +9,36 @@
 #include <sys/msg.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <signal.h>
+
+//initialize process table
+struct PCB {
+	int occupied;
+      	pid_t pid;
+        int startSeconds;
+        int startNano;
+        int endingTimeSeconds;
+        int endingTimeNano;
+        int messagesSent;
+};
+
+struct SimulatedClock {
+      	unsigned int seconds;
+       	unsigned int nanoseconds;
+};
+
+//oss sets up message queue
+typedef struct msgbuffer {
+       	long mtype;
+        char strData[100];
+        int intData;
+} msgbuffer;
+
+// signal handler
+void signal_handler(int sig) {
+	std::cout << "Timeout reached. Exiting...\n";
+	exit(1);
+}
 
 //user inputs oss[-h][-n][-s][-t][-i][-f]
 int main(int argc, char **argv) {
@@ -51,35 +81,26 @@ int main(int argc, char **argv) {
 		std::cout << "Invalid argument values\n";
 		exit(1);
 	}
+	
+	// message queue setup
+	key_t key;
+	int msqid;
+
+	key = ftok(".", 'B');
+	if (key == -1) {
+		perror("ftok");
+		exit(1);
+	}
+
+	msqid = msgget(key, 0644 | IPC_CREAT);
+	if (msqid == -1) {
+		perror("msgget");
+		exit(1);
+	}
 
 	//setup signal/alarm
 
-	//oss sets up message queue
-        #define PERMS 0644
-        typedef struct msgbuffer {
-                long mtype;
-                char strData[100];
-                int intData;
-        } msgbuffer;
-
-	//initializ process table
-	struct PCB {
-		int occupied;
-		pid_t pid;
-		int startSeconds;
-		int startNano;
-		int endingTimeSeconds;
-		int endingTimeNano;
-		int messagesSent
-	};
 	struct PCB processTable[20];
-
-	//oss initializes system clock
-
-	struct SimulatedClock {
-        	unsigned int seconds;
-        	unsigned int nanoseconds;
-	};
 
 	//while there's still children
 		//increment clock
@@ -87,9 +108,48 @@ int main(int argc, char **argv) {
 		//pick next child
 		//send and receive messages
 		//if child done, wait(), update PCB
+	
+	for (int k = 0; k < n; k++) {
+		pid_t pid = fork();
 
+		if (pid == 0) {
+			execl("./worker", "worker", NULL);
+			perror("execl failed");
+			exit(1);
+		}
+	}
+
+	// send messages
+	msgbuffer msg;
+	msg.mtype = 1;
+	msg.intData = 123;
+	strcpy(msg.strData, "Hello from OSS");
+
+	for (int k = 0; k < n; k++) {
+		if (msgsnd(msqid, &msg, sizeof(msg), 0) == -1) {
+			perror("msgsnd");
+		}
+	}
+	// receive messages
+	for (int k = 0; k < n; k++) {
+		if (msgrcv(msqid, &msg, sizeof(msg), 0, 0) == -1) {
+			perror("msgrcv");
+		} else {
+			std::cout << "OSS received: %s\n", msg.strData;
+		}
+	}
+
+	// wait for children
+	for (int k = 0; k < n; k++) {
+		wait(NULL);
+	}
+
+	// clean up
+	msgctl(msqid, IPC_RMID, NULL);
 
 	// output summary (total number of processes launched, number of times messages were sent from oss)
+	std::cout << "Total children launched: %d\n", n;
+	std::cout << "Messages sent: %d\n", n;
 
 	return 0;
 }
