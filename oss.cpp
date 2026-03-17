@@ -10,7 +10,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-# user inputs oss[-h][-n][-s][-t][-i][-f]
+//user inputs oss[-h][-n][-s][-t][-i][-f]
 int main(int argc, char **argv) {
 
 	// Default values for command line parameters
@@ -52,9 +52,9 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 
-	# setup signal/alarm
+	//setup signal/alarm
 
-	# oss sets up message queue
+	//oss sets up message queue
         #define PERMS 0644
         typedef struct msgbuffer {
                 long mtype;
@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
                 int intData;
         } msgbuffer;
 
-	# initializ process table
+	//initializ process table
 	struct PCB {
 		int occupied;
 		pid_t pid;
@@ -74,22 +74,22 @@ int main(int argc, char **argv) {
 	};
 	struct PCB processTable[20];
 
-	# oss initializes system clock
+	//oss initializes system clock
 
 	struct SimulatedClock {
         	unsigned int seconds;
         	unsigned int nanoseconds;
 	};
 
-	# while there's still children
-		#increment clock
-		# fork + exec child if able
-		# pick next child
-		# send/ receive messages
-		# if child done, wait(), update PCB
+	//while there's still children
+		//increment clock
+		//fork + exec child if able
+		//pick next child
+		//send and receive messages
+		//if child done, wait(), update PCB
 
 
-	# output summary (total number of processes launched, number of times messages were sent from oss)
+	// output summary (total number of processes launched, number of times messages were sent from oss)
 
 	return 0;
 }
