@@ -51,41 +51,45 @@ int main(int argc, char **argv) {
 		std::cout << "Invalid argument values\n";
 		exit(1);
 	}
-return 0;
+
+	# setup signal/alarm
+
+	# oss sets up message queue
+        #define PERMS 0644
+        typedef struct msgbuffer {
+                long mtype;
+                char strData[100];
+                int intData;
+        } msgbuffer;
+
+	# initializ process table
+	struct PCB {
+		int occupied;
+		pid_t pid;
+		int startSeconds;
+		int startNano;
+		int endingTimeSeconds;
+		int endingTimeNano;
+		int messagesSent
+	};
+	struct PCB processTable[20];
+
+	# oss initializes system clock
+
+	struct SimulatedClock {
+        	unsigned int seconds;
+        	unsigned int nanoseconds;
+	};
+
+	# while there's still children
+		#increment clock
+		# fork + exec child if able
+		# pick next child
+		# send/ receive messages
+		# if child done, wait(), update PCB
+
+
+	# output summary (total number of processes launched, number of times messages were sent from oss)
+
+	return 0;
 }
-
-# oss initializes system clock
-/*
- * SimulatedClock structure
- * This is the shared memory structure accessed by OSS and all workers.
- * It represents a logical clock.
- */
-
-struct SimulatedClock {
-        unsigned int seconds;
-        unsigned int nanoseconds;
-};
-
-# oss initializes message queue
-# oss sets up message queue
-#define PERMS 0644
-typedef struct msgbuffer {
-	long mtype;
-	char strData[100];
-	int intData;
-} msgbuffer;
-
-# massage queue setup
-# fork + exec
-# send/ receive messages
-
-# oss loops to launch (max s) child processes:
-	# fork()
-	# exec()
-	# output process table
-	# output/send oss info to screen/log file
-# oss loops:
-	# increment clock
-	# check to see if child terminated
-# once all child processes completed:
-# output summary (total number of processes launched, number of times messages were sent from oss)
