@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <signal.h>
 
-//initialize process table
+// Process Control Block
 struct PCB {
 	int occupied;
       	pid_t pid;
@@ -22,6 +22,7 @@ struct PCB {
         int messagesSent;
 };
 
+// Simulated Clock
 struct SimulatedClock {
       	unsigned int seconds;
        	unsigned int nanoseconds;
@@ -98,18 +99,21 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 
-	//setup signal/alarm
+	// Initialize process table
+	PCB processTable[20];
+	for (int i = 0; i < 20; i++) {
+		processTable[i].occupied = 0;
+	}
 
-	struct PCB processTable[20];
+	// Simulated clock
+	SimulatedClock clock;
+	clock.seconds = 0;
+	clock.nanoseconds = 0;
 
-	//while there's still children
-		//increment clock
-		//fork + exec child if able
-		//pick next child
-		//send and receive messages
-		//if child done, wait(), update PCB
-	
-	for (int k = 0; k < n; k++) {
+	int index = 0;
+
+	// Launch initial children
+	while (totalLaunched < n && current < s) {
 		pid_t pid = fork();
 
 		if (pid == 0) {
@@ -117,39 +121,103 @@ int main(int argc, char **argv) {
 			perror("execl failed");
 			exit(1);
 		}
+
+		processTable[current].occupied = 1;
+		processTable[current].pid = pid;
+		processTable[current].messagesSent = 0;
+
+		current++;
+		totalLaunched++;
 	}
+	// main loop
+	while (current > 0) {
+		// increment clock
+		clock.nanoseconds += 100000000;
+		if (clock.nanoseconds >= 1000000000) {
+			clock.seconds++;
+			clock.nanoseconds -= 1000000000;
+		}
 
-	// send messages
-	msgbuffer msg;
-	msg.mtype = 1;
-	msg.intData = 123;
-	strcpy(msg.strData, "Hello from OSS");
+		// Find next active child
+		int found = 0;
+		for (int i = 0; i < 20; i++) {
+			int idx = (index + i) % 20;
+			if (processTable[idx].occupied) {
+				index = idx;
+				found = 1;
+				break;
+			}
+		}
 
-	for (int k = 0; k < n; k++) {
+		if (!found) break;
+
+		pid_t targetPID = processTable[index].pid;
+
+
+		// send messages
+		msgbuffer msg;
+		msg.mtype = targetPID;
+		msg.intData = 1;
+
+		std::cout << "OSS: Sending message to PID %d at time %u:%u\n", targetPID, clock.seconds, clock.nanoseconds;
+
 		if (msgsnd(msqid, &msg, sizeof(msg), 0) == -1) {
 			perror("msgsnd");
 		}
-	}
-	// receive messages
-	for (int k = 0; k < n; k++) {
-		if (msgrcv(msqid, &msg, sizeof(msg), 0, 0) == -1) {
+
+		// Receive response
+		if (msgrcv(msqid, &msg, sizeof(msg), 1, 0) == -1) {
 			perror("msgrcv");
 		} else {
-			std::cout << "OSS received: %s\n", msg.strData;
+			std::cout << "OSS: Received message from PID %d\n", targetPID;
 		}
-	}
 
-	// wait for children
-	for (int k = 0; k < n; k++) {
-		wait(NULL);
+		processTable[index].messagesSent++;
+
+		// Check termination
+		if (msg.intData == 0) {
+			std::cout << "OSS: Child %d terminating\n", targetPID;
+
+			waitpid(targetPID, NULL, 0);
+
+			processTable[index].occupied = 0;
+			current--;
+
+			// Launch new child if needed
+			if (totalLaunched < n) {
+				pid_t pid = fork();
+
+				if (pid ==0) {
+					execl("./worker", "worker", NULL);
+					perror("execl failed");
+					exit(1);
+				}
+
+				processTable[index].occupied = 1;
+				processTable[index].pid = pid;
+				processTable[index].messagesSent = 0;
+
+				current++;
+				totalLaunched++;
+			}
+		}
+	
+		index = (index + 1) % 20;
 	}
 
 	// clean up
 	msgctl(msqid, IPC_RMID, NULL);
 
 	// output summary (total number of processes launched, number of times messages were sent from oss)
-	std::cout << "Total children launched: %d\n", n;
-	std::cout << "Messages sent: %d\n", n;
+	std::cout << "Total children launched: %d\n", totalLaunched;
+	
+	int totalMessages = 0;
+
+	for (int i = 0; i < 20; i++) {
+		totalMessages += processTable[i].messagesSent;
+	}
+
+	std::cout << "Total messages sent: %d\n", totalMessages;
 
 	return 0;
 }
